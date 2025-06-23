@@ -77,7 +77,7 @@ if st.button("Analyze & Allocate"):
 
     for ticker in tickers:
         try:
-            data = yf.download(ticker, period="6mo")
+            data = yf.download(ticker, period="1y")
             if data.empty:
                 failed.append(ticker)
                 continue
