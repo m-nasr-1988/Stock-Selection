@@ -102,7 +102,7 @@ if st.button("Analyze & Allocate"):
             st.markdown(f"### {ticker} Chart & Indicators")
 
             fig, ax = plt.subplots(figsize=(10, 4))
-            ax.plot(, label="Close")
+            ax.plot(df["Close"], label="Close")
             ax.plot(df["MA50"], label="MA50")
             ax.plot(df["MA200"], label="MA200")
             ax.plot(df["BB_Upper"], label="BB Upper", linestyle='--', color='grey')
