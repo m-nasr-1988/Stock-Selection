@@ -96,10 +96,16 @@ if st.button("Analyze & Allocate"):
         st.dataframe(alloc_df)
 
         # Pie Chart
-        fig, ax = plt.subplots(figsize=(4, 4))
-        ax.pie(allocations.values(), labels=allocations.keys(), autopct='%1.1f%%', startangle=90)
-        ax.axis('equal')
+        fig, ax = plt.subplots(figsize=(3, 3), dpi=100)
+        ax.pie(
+            allocations.values(),labels=allocations.keys(),autopct='%1.1f%%',startangle=90,textprops={'fontsize': 8}
+        )
+        ax.axis('equal')  # Equal aspect ratio ensures the pie is circular.
+
+        # Use tighter layout to remove excess padding
+        plt.tight_layout()
         st.pyplot(fig)
+
     else:
         st.warning("No strong buy signals found based on indicators and model predictions.")
 
