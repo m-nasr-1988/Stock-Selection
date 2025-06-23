@@ -27,11 +27,11 @@ def add_indicators(df):
     rs = avg_gain / avg_loss
     df["RSI"] = 100 - (100 / (1 + rs))
 
-    # Bollinger Bands
+    # ✅ Bollinger Bands (apply to 'Close' only)
     df["BB_Middle"] = df["Close"].rolling(window=20).mean()
-    std = df["Close"].rolling(window=20).std()
-    df["BB_Upper"] = df["BB_Middle"] + 2 * std
-    df["BB_Lower"] = df["BB_Middle"] - 2 * std
+    bb_std = df["Close"].rolling(window=20).std()
+    df["BB_Upper"] = df["BB_Middle"] + 2 * bb_std
+    df["BB_Lower"] = df["BB_Middle"] - 2 * bb_std
 
     df.dropna(inplace=True)
     return df
