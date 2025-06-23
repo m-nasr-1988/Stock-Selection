@@ -10,9 +10,11 @@ import matplotlib.pyplot as plt
 # Technical Indicators
 def add_indicators(df):
     df = df.copy()
+
+    # Moving Averages
     df["MA50"] = df["Close"].rolling(window=50).mean()
     df["MA200"] = df["Close"].rolling(window=200).mean()
-    
+
     # MACD
     ema12 = df["Close"].ewm(span=12, adjust=False).mean()
     ema26 = df["Close"].ewm(span=26, adjust=False).mean()
@@ -21,19 +23,19 @@ def add_indicators(df):
 
     # RSI
     delta = df["Close"].diff()
-    gain = np.where(delta > 0, delta, 0)
-    loss = np.where(delta < 0, -delta, 0)
-    avg_gain = pd.Series(gain).rolling(window=14).mean()
-    avg_loss = pd.Series(loss).rolling(window=14).mean()
+    gain = delta.where(delta > 0, 0)
+    loss = -delta.where(delta < 0, 0)
+    avg_gain = gain.rolling(window=14).mean()
+    avg_loss = loss.rolling(window=14).mean()
     rs = avg_gain / avg_loss
     df["RSI"] = 100 - (100 / (1 + rs))
 
-    # ✅ Bollinger Bands - Clean and safe
-    middle_band = df["Close"].rolling(window=20).mean()
-    std_dev = df["Close"].rolling(window=20).std()
-    df["BB_Middle"] = middle_band
-    df["BB_Upper"] = middle_band + (2 * std_dev)
-    df["BB_Lower"] = middle_band - (2 * std_dev)
+    # Bollinger Bands
+    rolling_mean = df["Close"].rolling(window=20).mean()
+    rolling_std = df["Close"].rolling(window=20).std()
+    df["BB_Middle"] = rolling_mean
+    df["BB_Upper"] = rolling_mean + (2 * rolling_std)
+    df["BB_Lower"] = rolling_mean - (2 * rolling_std)
 
     df.dropna(inplace=True)
     return df
