@@ -48,7 +48,7 @@ def get_stock_score(df):
     df.dropna(inplace=True)
 
     features = ["MA50", "MA200", "MACD", "Signal", "RSI", "BB_Middle", "BB_Upper", "BB_Lower"]
-    X = df[features]
+    X = df[features].dropna(axis=1)
     y = df["Target"]
 
     if len(X) < 10:
@@ -96,7 +96,7 @@ if st.button("Analyze & Allocate"):
         st.dataframe(alloc_df)
 
         # Pie Chart
-        fig, ax = plt.subplots()
+        fig, ax = plt.subplots(figsize=(4, 4))
         ax.pie(allocations.values(), labels=allocations.keys(), autopct='%1.1f%%', startangle=90)
         ax.axis('equal')
         st.pyplot(fig)
