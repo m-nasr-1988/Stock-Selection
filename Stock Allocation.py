@@ -1,17 +1,15 @@
 import streamlit as st
-import yfinance as yf
 import pandas as pd
+import yfinance as yf
 import numpy as np
-from sklearn.ensemble import RandomForestClassifier
 from sklearn.model_selection import train_test_split
-from sklearn.metrics import accuracy_score
+from sklearn.ensemble import RandomForestClassifier
 import matplotlib.pyplot as plt
 
-# Technical Indicators
+st.set_page_config(page_title="Smart Stock Allocator", layout="wide")
+
 def add_indicators(df):
     df = df.copy()
-
-    # Moving Averages
     df["MA50"] = df["Close"].rolling(window=50).mean()
     df["MA200"] = df["Close"].rolling(window=200).mean()
 
@@ -31,94 +29,79 @@ def add_indicators(df):
     df["RSI"] = 100 - (100 / (1 + rs))
 
     # Bollinger Bands
-    rolling_mean = df["Close"].rolling(window=20).mean()
-    rolling_std = df["Close"].rolling(window=20).std()
-    df["BB_Middle"] = rolling_mean
-    df["BB_Upper"] = rolling_mean + (2 * rolling_std)
-    df["BB_Lower"] = rolling_mean - (2 * rolling_std)
+    mean = df["Close"].rolling(window=20).mean()
+    std = df["Close"].rolling(window=20).std()
+    df["BB_Middle"] = mean
+    df["BB_Upper"] = mean + 2 * std
+    df["BB_Lower"] = mean - 2 * std
 
     df.dropna(inplace=True)
     return df
 
-# ML Model
-def train_ml_model(df):
-    df['Target'] = (df['Close'].shift(-1) > df['Close']).astype(int)
-    features = ['MA50', 'MA200', 'MACD', 'Signal', 'RSI', 'BB_Middle', 'BB_Upper', 'BB_Lower']
-    df = df.dropna()
+def get_stock_score(df):
+    df = add_indicators(df)
+
+    if df.shape[0] < 50:
+        raise ValueError("Not enough data to make a reliable prediction.")
+
+    df["Target"] = (df["Close"].shift(-1) > df["Close"]).astype(int)
+    df.dropna(inplace=True)
+
+    features = ["MA50", "MA200", "MACD", "Signal", "RSI", "BB_Middle", "BB_Upper", "BB_Lower"]
     X = df[features]
-    y = df['Target']
-    X_train, X_test, y_train, y_test = train_test_split(X, y, shuffle=False, test_size=0.2)
-    
-    model = RandomForestClassifier(n_estimators=100, random_state=42)
+    y = df["Target"]
+
+    if len(X) < 10:
+        raise ValueError("Not enough samples for training.")
+
+    X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, shuffle=False)
+
+    model = RandomForestClassifier()
     model.fit(X_train, y_train)
-    acc = accuracy_score(y_test, model.predict(X_test))
-    prediction = model.predict_proba([X.iloc[-1]])[0][1]  # probability of going up
-    
-    return acc, prediction
 
-# Allocation logic
-def allocate(capital, predictions):
-    sorted_pred = sorted(predictions.items(), key=lambda x: x[1], reverse=True)
-    total_weight = sum([p for _, p in sorted_pred])
-    allocation = {}
-    for stock, pred in sorted_pred:
-        weight = pred / total_weight if total_weight > 0 else 1 / len(predictions)
-        allocation[stock] = round(capital * weight, 2)
-    return allocation
+    prediction = model.predict(X.tail(1))[0]
+    score = model.predict_proba(X.tail(1))[0][1]
 
-# Main Streamlit App
-st.title("📈 Enhanced Smart Stock Allocation")
+    return prediction, score
 
-tickers_input = st.text_input("Enter stock tickers (comma-separated):", "AAPL, MSFT, TSLA")
-capital = st.number_input("Investment Capital (USD):", min_value=100.0, value=1000.0)
+# Streamlit UI
+st.title("📈 Smart Stock Investment Advisor")
+
+tickers = st.text_input("Enter stock tickers separated by commas (e.g. AAPL, MSFT, TSLA):", "AAPL, MSFT, TSLA")
+investment = st.number_input("Enter amount to invest (USD):", min_value=100.0, value=1000.0)
 
 if st.button("Analyze & Allocate"):
-    tickers = [t.strip().upper() for t in tickers_input.split(",")]
-    predictions = {}
-    accuracies = {}
-    data_cache = {}
+    tickers = [t.strip().upper() for t in tickers.split(",")]
+    scores = {}
+    failed = []
 
     for ticker in tickers:
         try:
-            df = yf.download(ticker, period="6mo", interval="1d")
-            df = add_indicators(df)
-            acc, pred = train_ml_model(df)
-            predictions[ticker] = pred
-            accuracies[ticker] = acc
-            data_cache[ticker] = df
+            data = yf.download(ticker, period="6mo")
+            if data.empty:
+                failed.append(ticker)
+                continue
+            pred, score = get_stock_score(data)
+            if pred == 1:
+                scores[ticker] = score
         except Exception as e:
-            st.error(f"{ticker} failed: {e}")
-    
-    if predictions:
-        allocation = allocate(capital, predictions)
-        st.subheader("📊 Allocation Recommendation")
-        st.write(allocation)
+            failed.append(f"{ticker} ({str(e)})")
 
-        st.subheader("📉 ML Confidence & Accuracy")
-        st.dataframe(pd.DataFrame({
-            "ML Prediction Confidence (prob of ↑)": predictions,
-            "Model Accuracy (last 6mo)": accuracies
-        }).round(2))
+    if scores:
+        total_score = sum(scores.values())
+        allocations = {ticker: round((score / total_score) * investment, 2) for ticker, score in scores.items()}
 
-        for ticker, df in data_cache.items():
-            st.markdown(f"### {ticker} Chart & Indicators")
+        st.subheader("📊 Investment Allocation Recommendation")
+        alloc_df = pd.DataFrame(list(allocations.items()), columns=["Ticker", "Allocated ($)"])
+        st.dataframe(alloc_df)
 
-            fig, ax = plt.subplots(figsize=(10, 4))
-            ax.plot(df["Close"], label="Close")
-            ax.plot(df["MA50"], label="MA50")
-            ax.plot(df["MA200"], label="MA200")
-            ax.plot(df["BB_Upper"], label="BB Upper", linestyle='--', color='grey')
-            ax.plot(df["BB_Lower"], label="BB Lower", linestyle='--', color='grey')
-            ax.set_title(f"{ticker} Price + Indicators")
-            ax.legend()
-            st.pyplot(fig)
-
-            fig_rsi, ax_rsi = plt.subplots(figsize=(10, 2))
-            ax_rsi.plot(df["RSI"], label="RSI", color="purple")
-            ax_rsi.axhline(70, linestyle='--', color='red')
-            ax_rsi.axhline(30, linestyle='--', color='green')
-            ax_rsi.set_title(f"{ticker} RSI")
-            ax_rsi.legend()
-            st.pyplot(fig_rsi)
+        # Pie Chart
+        fig, ax = plt.subplots()
+        ax.pie(allocations.values(), labels=allocations.keys(), autopct='%1.1f%%', startangle=90)
+        ax.axis('equal')
+        st.pyplot(fig)
     else:
-        st.warning("No valid data or predictions.")
+        st.warning("No strong buy signals found based on indicators and model predictions.")
+
+    if failed:
+        st.error(f"Some tickers failed to process: {', '.join(failed)}")
