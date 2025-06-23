@@ -9,6 +9,7 @@ import matplotlib.pyplot as plt
 
 # Technical Indicators
 def add_indicators(df):
+    df = df.copy()
     df["MA50"] = df["Close"].rolling(window=50).mean()
     df["MA200"] = df["Close"].rolling(window=200).mean()
     
@@ -20,18 +21,19 @@ def add_indicators(df):
 
     # RSI
     delta = df["Close"].diff()
-    gain = delta.clip(lower=0)
-    loss = -delta.clip(upper=0)
-    avg_gain = gain.rolling(window=14).mean()
-    avg_loss = loss.rolling(window=14).mean()
+    gain = np.where(delta > 0, delta, 0)
+    loss = np.where(delta < 0, -delta, 0)
+    avg_gain = pd.Series(gain).rolling(window=14).mean()
+    avg_loss = pd.Series(loss).rolling(window=14).mean()
     rs = avg_gain / avg_loss
     df["RSI"] = 100 - (100 / (1 + rs))
 
-    # ✅ Bollinger Bands (apply to 'Close' only)
-    df["BB_Middle"] = df["Close"].rolling(window=20).mean()
-    bb_std = df["Close"].rolling(window=20).std()
-    df["BB_Upper"] = df["BB_Middle"] + 2 * bb_std
-    df["BB_Lower"] = df["BB_Middle"] - 2 * bb_std
+    # ✅ Bollinger Bands - Clean and safe
+    middle_band = df["Close"].rolling(window=20).mean()
+    std_dev = df["Close"].rolling(window=20).std()
+    df["BB_Middle"] = middle_band
+    df["BB_Upper"] = middle_band + (2 * std_dev)
+    df["BB_Lower"] = middle_band - (2 * std_dev)
 
     df.dropna(inplace=True)
     return df
@@ -100,7 +102,7 @@ if st.button("Analyze & Allocate"):
             st.markdown(f"### {ticker} Chart & Indicators")
 
             fig, ax = plt.subplots(figsize=(10, 4))
-            ax.plot(df["Close"], label="Close")
+            ax.plot(, label="Close")
             ax.plot(df["MA50"], label="MA50")
             ax.plot(df["MA200"], label="MA200")
             ax.plot(df["BB_Upper"], label="BB Upper", linestyle='--', color='grey')
